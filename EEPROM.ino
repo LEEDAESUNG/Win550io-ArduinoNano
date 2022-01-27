@@ -1,6 +1,4 @@
 
-
-
 //EEPROM 설정
 void EEPROM_Init(uint16_t &no, byte *mac, IPAddress &ip, IPAddress &sm, IPAddress &gw, IPAddress &dns, IPAddress &hostIP, uint16_t &hostPort, IPAddress &cameraIP){
 

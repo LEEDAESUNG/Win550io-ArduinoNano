@@ -1,37 +1,5 @@
-//////////////////////////////////////////////////////////////////////////////////////////
-const uint8_t hostMaxReqCount = 3; //재요청횟수:최소 1~ 변경가능
-//////////////////////////////////////////////////////////////////////////////////////////
 
-uint8_t hostReqCount = 0; //카메라로부터 응답패킷 수신대기상태에서 수신안되는 경우 재요청횟수
-int hostPeriod = 1000 * hostMaxReqCount; //최대 대기시간(ms)
-unsigned long hostQuotient; //재요청시간 계산용(최소:0~ 최대:hostPeriod/hostMaxReqCount )
-unsigned long hostStartTime; //카메라 접속 시간
-unsigned long hostTimeOffset;// 카메라 접속 후 응답수신 대기중일때 오버플로우 처리용
-//////////////////////////////////////////////////////////////////////////////////////////
-
-void GateProc()
-{
-    if(GATE_UP_F == true)
-    {
-      if( startGATEUPTime+GATE_UP_DELAYTIME < millis()) 
-      {
-          digitalWrite(Relay4, LOW);
-          GATE_UP_F = false;
-          startGATEUPTime=0;
-      }
-    }
-    else if(GATE_DOWN_F == true)
-    {
-      if( startGATEDOWNTime+GATE_DOWN_DELAYTIME < millis()) 
-      {
-          digitalWrite(Relay5, LOW);
-          GATE_DOWN_F = false;
-          startGATEDOWNTime=0;
-      }
-    }
-}
-
-//호스트로 패킷전송
+//호스트처리
 bool HostProc(char *packet)
 {
 #ifdef DEBUG
@@ -136,7 +104,7 @@ void ProcPacket()
         //디바이스정보 가져오기
         if(strcmp(recvRealBuff,"GETDEVICEINFO")==0) { 
             makeReplyBroadcast(); //브로드케스트 응답패킷 생성
-            nowReplyCount = 2;    //전송한 횟수세팅(총 3회중 1회만 전송하면 됨)
+            nowACKSendCount = 2;    //전송한 횟수세팅(총 3회중 1회만 전송하면 됨)
 
             //호스트로 응답패킷 전송위한 초기화
             ReplyInit();
@@ -144,7 +112,7 @@ void ProcPacket()
 
         //호스트로부터 ACK_R 수신 체크
         else if(check_Ack_R(recvRealBuff)== true) { 
-            nowReplyCount = 0;
+            nowACKSendCount = 0;
             ackR_F = true;
         }
 
@@ -152,7 +120,7 @@ void ProcPacket()
         else { 
             commandProc(recvRealBuff);
             makeReplyBuffer(recvRealBuff);//명령응답패킷 생성(형태:STX ACK ETX)
-            nowReplyCount = 0;  //전송한 횟수세팅
+            nowACKSendCount = 0;  //전송한 횟수세팅
 
             //호스트로 응답패킷 요청하기 위하여 초기화함
             ReplyInit();
@@ -379,14 +347,14 @@ void clearBuffer()
 void sendReply()
 {
   //응답패킷 전송 ex : STX ACK ETX
-  if(nowReplyCount < maxHostReplyCount) {
-    nowReplyCount++;
-    if(recvProtocol == ProtocolUDP ){ //UDP 응답
+  if(nowACKSendCount < maxACKSendCount) {
+    nowACKSendCount++;
+    if(svrProtocol == ProtocolUDP ){ //UDP 응답
       UdpServer.beginPacket(UdpServer.remoteIP(), UdpServer.remotePort());
       UdpServer.write(replyBuff);
       UdpServer.endPacket();
     }
-    else if(recvProtocol == ProtocolTCP ){ //TCP 응답
+    else if(svrProtocol == ProtocolTCP ){ //TCP 응답
       client.println(replyBuff);
     }
 
@@ -397,7 +365,7 @@ void sendReply()
   {
     //횟수초과시 더이상 재전송 안함
     ackR_F = true;
-    nowReplyCount=0;
+    nowACKSendCount=0;
   }
 }
 
@@ -410,4 +378,26 @@ void ReplyInit()
     replyReqCount = 0;
     
     ackR_F = false;
+}
+
+void GateProc()
+{
+    if(GATE_UP_F == true)
+    {
+      if( startGATEUPTime+GATE_UP_DELAYTIME < millis()) 
+      {
+          digitalWrite(Relay4, LOW);
+          GATE_UP_F = false;
+          startGATEUPTime=0;
+      }
+    }
+    else if(GATE_DOWN_F == true)
+    {
+      if( startGATEDOWNTime+GATE_DOWN_DELAYTIME < millis()) 
+      {
+          digitalWrite(Relay5, LOW);
+          GATE_DOWN_F = false;
+          startGATEDOWNTime=0;
+      }
+    }
 }

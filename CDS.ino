@@ -1,28 +1,3 @@
-//////////////////////////////////////////////////////////////////////////////////////////
-// CDS테이블
-// 키값:cds, 데이터:exposure
-// 예1) cds=0 ==> exposure=2100
-// 예2) cds=1 ==> exposure=1900
-// 예3) cds=10 ==> exposure=100
-//int exposureTable[11] = {2100,1900,1700,1500,1300,1100,900,700,500,300,100};
-//int exposureTable[15] = {1500,1400,1300,1200,1100,1000,900,800,700,600,500,400,300,200,100};
-int exposureTable[10] = {1000,900,800,700,600,500,400,300,200,100};
-int nowCDS = 0;
-int nowExposure = 0;
-int saveExposure = 0;
-
-
-//////////////////////////////////////////////////////////////////////////////////////////
-const uint8_t cameraMaxReqCount = 3; //재요청횟수:최소 1~ 변경가능
-//////////////////////////////////////////////////////////////////////////////////////////
-
-uint8_t cameraReqCount = 0; //카메라로부터 응답패킷 수신대기상태에서 수신안되는 경우 재요청횟수
-int cameraPeriod = 1000 * cameraMaxReqCount; //최대 대기시간(ms)
-unsigned long cameraQuotient; //재요청시간 계산용(최소:0~ 최대:cameraPeriod/cameraMaxReqCount )
-unsigned long cameraStartTime; //카메라 접속 시간
-unsigned long cameraTimeOffset;// 카메라 접속 후 응답수신 대기중일때 오버플로우 처리용
-//////////////////////////////////////////////////////////////////////////////////////////
-
 
 //CDS처리
 void CDSProc(){
@@ -30,7 +5,8 @@ void CDSProc(){
   CDSValue = analogRead(CDSPin);
   //int val1 = map(CDSValue, 100, 800, 0, 10);//CDS 아날로그 데이터 100~800값을 0~10으로 맵핑
   //int val1 = map(CDSValue, 0, 1023, 0, 14);
-  int val1 = map(CDSValue, 0, 1023, 0, 9);
+  //int val1 = map(CDSValue, 0, 1023, 0, 9);
+  int val1 = map(CDSValue, 0, 1023, 0, 13);
   nowCDS = constrain(val1, 0, 9);             //값의 범위를 0~10으로 제한
 
   nowExposure = exposureTable[nowCDS];

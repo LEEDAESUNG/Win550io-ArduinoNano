@@ -33,17 +33,18 @@ const int Relay8 = 9;  //S.P2
 const int CDSPin = A3;// CDS
 
 
+//////////////////////////////////////////////////////////////////////////////////////////
+//호스트
+const uint8_t hostMaxReqCount = 3; //재요청횟수:최소 1~ 변경가능
+uint8_t hostReqCount = 0; //카메라로부터 응답패킷 수신대기상태에서 수신안되는 경우 재요청횟수
+int hostPeriod = 1000 * hostMaxReqCount; //최대 대기시간(ms)
+unsigned long hostQuotient; //재요청시간 계산용(최소:0~ 최대:hostPeriod/hostMaxReqCount )
+unsigned long hostStartTime; //카메라 접속 시간
+unsigned long hostTimeOffset;// 카메라 접속 후 응답수신 대기중일때 오버플로우 처리용
 
-int CDSValue = 0;
-unsigned long currentCDSMillis = 0;
-unsigned long previousCDSMillis = 0;
-const long CDSInterval = 6000; // CDS 체크 간격(ms) - 60초
-
-
-unsigned long currentAckRMillis = 0;
-unsigned long previousAckRMillis = 0;
-const long AckRInterval = 100; // ArkR 체크 간격(ms)
-
+//unsigned long currentAckRMillis = 0;
+//unsigned long previousAckRMillis = 0;
+//const long AckRInterval = 100; // AckR 체크 간격(ms)
 
 const uint8_t replyMaxReqCount = 3; //응답 요청횟수:최소 1~ 변경가능
 const int replyPeriod = 1000 * replyMaxReqCount;
@@ -52,13 +53,35 @@ unsigned long replyTimeOffset;
 uint8_t replyReqCount = 0; //카메라로부터 응답패킷 수신대기상태에서 수신안되는 경우 재요청횟수
 unsigned long replyQuotient; //재요청시간 계산용(최소:0~ 최대:hostPeriod/hostMaxReqCount )
 
+//////////////////////////////////////////////////////////////////////////////////////////
+// CDS테이블
+// 키값:cds, 데이터:exposure
+// 예1) cds=0 ==> exposure=2100
+// 예2) cds=1 ==> exposure=1900
+// 예3) cds=10 ==> exposure=100
+//int exposureTable[11] = {2100,1900,1700,1500,1300,1100,900,700,500,300,100};
+//int exposureTable[15] = {1500,1400,1300,1200,1100,1000,900,800,700,600,500,400,300,200,100};
+//int exposureTable[10] = {1000,900,800,700,600,500,400,300,200,100};
+int exposureTable[14] = {1300,1200,1100,1000,900,800,700,600,500,400,300,200,100,50};
+int nowCDS = 0;
+int nowExposure = 0;
+int saveExposure = 0;
+int CDSValue = 0;
+unsigned long CDSPreviousTime=0;
+const long CDSPeriod = 6000;
+unsigned long CDSTimeOffset=0;
+//unsigned long currentCDSMillis = 0;
+//unsigned long previousCDSMillis = 0;
+//const long CDSInterval = 6000; // CDS 체크 간격(ms) - 60초
 
-const uint8_t replyMaxReqCount2 = 3; //응답 요청횟수:최소 1~ 변경가능
-const int replyPeriod2 = 1000 * replyMaxReqCount2;
-unsigned long replyStartTime2;
-unsigned long replyTimeOffset2;
-uint8_t replyReqCount2 = 0; //카메라로부터 응답패킷 수신대기상태에서 수신안되는 경우 재요청횟수
-unsigned long replyQuotient2; //재요청시간 계산용(최소:0~ 최대:hostPeriod/hostMaxReqCount )
+//////////////////////////////////////////////////////////////////////////////////////////
+//카메라
+const uint8_t cameraMaxReqCount = 3; //재요청횟수:최소 1~ 변경가능
+uint8_t cameraReqCount = 0; //카메라로부터 응답패킷 수신대기상태에서 재요청횟수
+int cameraPeriod = 1000 * cameraMaxReqCount; //최대 수신대기시간(ms)
+unsigned long cameraQuotient; //재요청시간 계산용(최소:0~ 최대:cameraPeriod/cameraMaxReqCount )
+unsigned long cameraStartTime; //카메라 접속 시간
+unsigned long cameraTimeOffset;// 카메라 접속 후 응답수신 대기중일때 오버플로우 처리용
 
 ///////////////////////////////////////////////////
 //차단기처리 플래그
@@ -86,27 +109,25 @@ IPAddress HostIP(192, 168, 100, 200);   // default host ip(tcp)
 uint16_t HostPort = 50001;              // host port(tcp)
 IPAddress CAMERAIP(192, 168, 100, 201); // default camera ip
 uint16_t CAMERAPORT = 1335;             //camera command port
-///////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////
 //서버 포트 정의
 //IPAddress localIP;
 unsigned int localPort = 50001;      // tcp, udp server local port
-//unsigned int broadcastPort = 50001;  // udp broadcast server port
 unsigned int localUDPPort = 50001;      // tcp, udp server local port
-
+//
 //수신버퍼 정의
 char recvRealBuff[UDP_TX_PACKET_MAX_SIZE]; //buffer to hold incoming packet,
 char recvTempBuff[UDP_TX_PACKET_MAX_SIZE]; //buffer to hold incoming packet,
 char replyBuff[256];  // a string to send back
-
+//
 //호스트로부터 수신한 패킷에 대하여 응답패킷(ACK) 송신횟수 / 최대 송신횟수 정의
-int nowReplyCount = 0;
-int maxHostReplyCount = 3;
+int maxACKSendCount = 3;
+int nowACKSendCount = 0;
 bool ackR_F = true; // 응답패킷(ACK)을 수신한 호스트에서 그에대한 응답패킷(ACK_R) 수신여부
 
 //패킷을 수신한 프로토콜 종류
-int recvProtocol = 0; //1:UDP, 2:TCP, 3:UDP BroadCast
+int svrProtocol = 0; //1:UDP, 2:TCP, 3:UDP BroadCast
 
 //서버소켓 정의
 EthernetUDP UdpServer;                                //UDP 서버
@@ -182,10 +203,8 @@ void SetPinMode()
 }
 
 //인터럽트 처리:호스트로 상태 전송
-unsigned long HostSendPreviousMillis = 0;
-const long previousInterruptMillis = 5000;//인터벌
+//const long previousInterruptMillis = 5000;//인터벌
 void blink() {
-  
   digitalWrite(Relay2, HIGH);
 
 //  unsigned long currentInterruptMillis = millis();
@@ -244,11 +263,6 @@ void setup() {
   Serial.print(":");
   Serial.println(localPort);
 
-  Serial.print("[BroadCast UDP Server] ");
-  Serial.print(Ethernet.localIP());
-  Serial.print(":");
-  Serial.println(broadcastPort);
-
   sprintf(tmpBuff, "[Device No] %d", myDeviceObject.no);
   Serial.println(tmpBuff);
 
@@ -268,7 +282,7 @@ void loop() {
   //UDP Server Receive(command:50001)
   int packetSize = UdpServer.parsePacket();
   if (packetSize) {
-      recvProtocol = ProtocolUDP;
+      svrProtocol = ProtocolUDP;
       UdpServer.read(recvTempBuff, UDP_TX_PACKET_MAX_SIZE);
 #ifdef DEBUG
       Serial.println("UDP Server => "); //test
@@ -280,7 +294,7 @@ void loop() {
   client = TcpServer.available();
   if (client) {
       if (client.available() > 0) {
-          recvProtocol = ProtocolTCP; //TCP
+          svrProtocol = ProtocolTCP; //TCP
           client.read(recvTempBuff, UDP_TX_PACKET_MAX_SIZE);
 #ifdef DEBUG
           Serial.println("TCP Server => "); //test
@@ -337,13 +351,13 @@ void loop() {
 //    
 //    CDSProc();
 //  }
-    //CDS처리
+
+    //CDS처리 : CDSPeriod 시간마다 처리함
     if(millis() < CDSPreviousTime) { //overflow
           CDSTimeOffset = 4294967294 - CDSPreviousTime;
           CDSPreviousTime = 0;
     }
-    if(millis() - CDSPreviousTime > CDSPeriod - CDSTimeOffset)
-    {
+    if(millis() - CDSPreviousTime > CDSPeriod - CDSTimeOffset)    {
         CDSTimeOffset=0;
         CDSPreviousTime = millis();
         CDSProc();
