@@ -3,13 +3,14 @@
 void CDSProc(){
 
   CDSValue = analogRead(CDSPin);
-  //int val1 = map(CDSValue, 100, 800, 0, 10);//CDS 아날로그 데이터 100~800값을 0~10으로 맵핑
+  //int val1 = map(CDSValue, 100, 800, 0, 10);//CDS 아날로그 데이터
   //int val1 = map(CDSValue, 0, 1023, 0, 14);
   //int val1 = map(CDSValue, 0, 1023, 0, 9);
-  int val1 = map(CDSValue, 0, 1023, 0, 13);
-  nowCDS = constrain(val1, 0, 9);             //값의 범위를 0~10으로 제한
+  //int val1 = map(CDSValue, 0, 1023, 0, 13);
+  int val1 = map(CDSValue, 0, 1023, 0, 15);
+  exposureIndex = constrain(val1, 0, 15);             //값의 범위를 0~15으로 제한
 
-  nowExposure = exposureTable[nowCDS];
+  nowExposure = exposureTable[exposureIndex];
   if(saveExposure != nowExposure) {
 
     Serial.print("CDS row data:");
@@ -17,7 +18,7 @@ void CDSProc(){
 
     char cameraCommand[32];
     saveExposure = nowExposure;
-    sprintf(cameraCommand,"SetExposure %d%2x%2x", CDSValue,13,10);//임시 raw데이터 함께 전송
+    sprintf(cameraCommand,"SetExposure %d%2x%2x", nowExposure,13,10);//임시 raw데이터 함께 전송
 
     int retryConnectCount = 3; //카메라접속 실패시 3회 재접속시도
     while(retryConnectCount > 0 && CameraProc(cameraCommand) == false){ //카메라 Exposure 처리(최대 3회 시도)
@@ -103,7 +104,7 @@ close:
             memset(CDSRePackage, 0, UDP_TX_PACKET_MAX_SIZE);
             CDSRePackage[0] = 0x02;
             //sprintf(&CDSRePackage[1], "%s", command); //원본
-            sprintf(&CDSRePackage[1],"%s_%d_%d", command,nowExposure,myDeviceObject.no); //임시
+            sprintf(&CDSRePackage[1],"%s_%d_%d", command,CDSValue,myDeviceObject.no); //임시
             CDSRePackage[strlen(CDSRePackage)] = 0x03;
 
             int retryHostToConnectCount = 3; //호스트접속 실패시 3회 재접속시도

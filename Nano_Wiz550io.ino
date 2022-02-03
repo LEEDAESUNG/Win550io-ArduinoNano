@@ -34,6 +34,13 @@ const int CDSPin = A3;// CDS
 
 
 //////////////////////////////////////////////////////////////////////////////////////////
+//부저
+bool Buzzer_F = false;
+unsigned long BuzzerStartTime;
+unsigned long BuzzerTimeOffset;
+const long BuzzerPeriod = 6000; // Buzzer 유지시간(ms)
+
+//////////////////////////////////////////////////////////////////////////////////////////
 //호스트
 const uint8_t hostMaxReqCount = 3; //재요청횟수:최소 1~ 변경가능
 uint8_t hostReqCount = 0; //카메라로부터 응답패킷 수신대기상태에서 수신안되는 경우 재요청횟수
@@ -58,17 +65,17 @@ unsigned long replyQuotient; //재요청시간 계산용(최소:0~ 최대:hostPe
 // 키값:cds, 데이터:exposure
 // 예1) cds=0 ==> exposure=2100
 // 예2) cds=1 ==> exposure=1900
-// 예3) cds=10 ==> exposure=100
 //int exposureTable[11] = {2100,1900,1700,1500,1300,1100,900,700,500,300,100};
 //int exposureTable[15] = {1500,1400,1300,1200,1100,1000,900,800,700,600,500,400,300,200,100};
-//int exposureTable[10] = {1000,900,800,700,600,500,400,300,200,100};
-int exposureTable[14] = {1300,1200,1100,1000,900,800,700,600,500,400,300,200,100,50};
-int nowCDS = 0;
+//int exposureTable[10] = {1000,900,800,700,600,500,400,300,200,50};
+//int exposureTable[14] = {1300,1200,1100,1000,900,800,700,600,500,400,300,200,100,50};
+int exposureTable[16] = {2000,1900,1800,1700,1600,1500,1400,1300,1200,1100,1000,900,800,700,600,500};
+int exposureIndex = 0;
 int nowExposure = 0;
 int saveExposure = 0;
 int CDSValue = 0;
 unsigned long CDSPreviousTime=0;
-const long CDSPeriod = 6000;
+const long CDSPeriod = 6000; // CDS 체크 간격(ms) - 60초
 unsigned long CDSTimeOffset=0;
 //unsigned long currentCDSMillis = 0;
 //unsigned long previousCDSMillis = 0;
@@ -218,6 +225,10 @@ void blink() {
 
   if(interrupt_F == false) {
     interrupt_F = true;
+  }
+
+  if(Buzzer_F == false) {
+    Buzzer_F = true;
   }
 
   digitalWrite(Relay2, LOW);
@@ -377,5 +388,10 @@ void loop() {
       ShockProc(shockPacket);
 
       interrupt_F = false;
+  }
+
+  //부저 처리
+  if(Buzzer_F == true) {
+      BuzzerProc();
   }
 }
